@@ -1,10 +1,20 @@
 # AWS CloudWatch Logs Handler for Monolog
 
+<!--
 [![Actions Status](https://github.com/maxbanton/cwh/workflows/Pipeline/badge.svg)](https://github.com/maxbanton/cwh/actions)
 [![Coverage Status](https://img.shields.io/coveralls/maxbanton/cwh/master.svg)](https://coveralls.io/github/maxbanton/cwh?branch=master)
 [![License](https://img.shields.io/packagist/l/maxbanton/cwh.svg)](https://github.com/maxbanton/cwh/blob/master/LICENSE)
 [![Version](https://img.shields.io/packagist/v/maxbanton/cwh.svg)](https://packagist.org/packages/maxbanton/cwh)
 [![Downloads](https://img.shields.io/packagist/dt/maxbanton/cwh.svg)](https://packagist.org/packages/maxbanton/cwh/stats)
+-->
+
+# Forked from [maxbanton/cwh](https://github.com/maxbanton/cwh)
+
+Forked with the intended changes:
+
+- Stop any GET requests to CWL
+- Assume the LogGroup exists and don't waste resources checking for it
+- Assuming we're always creating a new LogStream - we'll surpass the RPS for putting logs to a single stream so always create a new one per container
 
 Handler for PHP logging library [Monolog](https://github.com/Seldaek/monolog) for sending log entries to 
 [AWS CloudWatch Logs](http://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html) service.
@@ -19,15 +29,16 @@ Please press **&#9733; Star** button if you find this library useful.
 
 ## Features
 * Up to 10000 batch logs sending in order to avoid _Rate exceeded_ errors 
-* Log Groups creating with tags
-* AWS CloudWatch Logs staff lazy loading
+* Avoid unnecessary queries to CloudWatch by assuming the LogGroup exists and that the LogStream needs created
+* Will query LogStreams to refresh sequence token, but this should never be required
 * Suitable for web applications and for long-living CLI daemons and workers
 
 ## Installation
 Install the latest version with [Composer](https://getcomposer.org/) by running
 
 ```bash
-$ composer require maxbanton/cwh:^2.0
+# TODO: This isn't published to packagist yet
+# $ composer require maxbanton/cwh:^2.0
 ```
 
 ## Basic Usage
@@ -58,11 +69,8 @@ $groupName = 'php-logtest';
 // Log stream name, will be created if none
 $streamName = 'ec2-instance-1';
 
-// Days to keep logs, 14 by default. Set to `null` to allow indefinite retention.
-$retentionDays = 30;
-
 // Instantiate handler (tags are optional)
-$handler = new CloudWatch($client, $groupName, $streamName, $retentionDays, 10000, ['my-awesome-tag' => 'tag-value']);
+$handler = new CloudWatch($client, $groupName, $streamName, 10000);
 
 // Optionally set the JsonFormatter to be able to access your log messages in a structured way
 $handler->setFormatter(new JsonFormatter());
@@ -106,17 +114,7 @@ When setting the `$createGroup` argument to `false`, permissions `DescribeLogGro
         {
             "Effect": "Allow",
             "Action": [
-                "logs:CreateLogGroup",
-                "logs:DescribeLogGroups"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "logs:CreateLogStream",
                 "logs:DescribeLogStreams",
-                "logs:PutRetentionPolicy"
             ],
             "Resource": "{LOG_GROUP_ARN}"
         },

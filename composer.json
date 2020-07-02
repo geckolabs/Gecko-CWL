@@ -1,6 +1,6 @@
 {
-    "name": "maxbanton/cwh",
-    "homepage": "https://github.com/maxbanton/cwh",
+    "name": "geckolabs/cwh",
+    "homepage": "https://github.com/geckolabs/Gecko-CWL",
     "type": "library",
     "description": "AWS CloudWatch Handler for Monolog library",
     "keywords": [
@@ -11,14 +11,14 @@
     "license": "MIT",
     "authors": [
         {
-            "name": "Max Leonov",
-            "email": "hi@maxleonov.pw",
-            "homepage": "https://maxleonov.pw"
+            "name": "Gecko Labs",
+            "email": "devs@geckolabs.co.uk",
+            "homepage": "https://geckoengage.com"
         }
     ],
     "support": {
-        "issues": "https://github.com/maxbanton/cwh/issues",
-        "source": "https://github.com/maxbanton/cwh"
+        "issues": "https://github.com/geckolabs/Gecko-CWL/issues",
+        "source": "https://github.com/geckolabs/Gecko-CWL"
     },
     "require": {
         "php": "^7.2",
@@ -31,9 +31,7 @@
         "squizlabs/php_codesniffer": "^3.5",
         "php-coveralls/php-coveralls": "^2.2"
     },
-    "suggest": {
-        "maxbanton/dd": "Minimalistic dump-and-die function for easy debugging"
-    },
+    "suggest": {},
     "config": {
         "preferred-install": "dist"
     },
