@@ -2,11 +2,11 @@
 
 namespace Maxbanton\Cwh\Handler;
 
-use Aws\CloudWatchLogs\CloudWatchLogsClient;
-use Monolog\Formatter\FormatterInterface;
-use Monolog\Formatter\LineFormatter;
-use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Logger;
+use Monolog\Handler\AbstractProcessingHandler;
+use Monolog\Formatter\LineFormatter;
+use Monolog\Formatter\FormatterInterface;
+use Aws\CloudWatchLogs\CloudWatchLogsClient;
 
 class CloudWatch extends AbstractProcessingHandler
 {
@@ -38,11 +38,6 @@ class CloudWatch extends AbstractProcessingHandler
     private $stream;
 
     /**
-     * @var integer
-     */
-    private $retention;
-
-    /**
      * @var bool
      */
     private $initialized = false;
@@ -61,16 +56,6 @@ class CloudWatch extends AbstractProcessingHandler
      * @var array
      */
     private $buffer = [];
-
-    /**
-     * @var array
-     */
-    private $tags = [];
-
-    /**
-     * @var bool
-     */
-    private $createGroup;
 
     /**
      * Data amount limit (http://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html)
@@ -109,12 +94,9 @@ class CloudWatch extends AbstractProcessingHandler
      *  The ':' (colon) and '*' (asterisk) characters are not allowed.
      * @param string $stream
      *
-     * @param int $retention
      * @param int $batchSize
-     * @param array $tags
      * @param int $level
      * @param bool $bubble
-     * @param bool $createGroup
      *
      * @throws \Exception
      */
@@ -122,12 +104,9 @@ class CloudWatch extends AbstractProcessingHandler
         CloudWatchLogsClient $client,
         $group,
         $stream,
-        $retention = 14,
         $batchSize = 10000,
-        array $tags = [],
         $level = Logger::DEBUG,
-        $bubble = true,
-        $createGroup = true
+        $bubble = true
     ) {
         if ($batchSize > 10000) {
             throw new \InvalidArgumentException('Batch size can not be greater than 10000');
@@ -136,10 +115,7 @@ class CloudWatch extends AbstractProcessingHandler
         $this->client = $client;
         $this->group = $group;
         $this->stream = $stream;
-        $this->retention = $retention;
         $this->batchSize = $batchSize;
-        $this->tags = $tags;
-        $this->createGroup = $createGroup;
 
         parent::__construct($level, $bubble);
 
@@ -178,25 +154,26 @@ class CloudWatch extends AbstractProcessingHandler
 
     private function flushBuffer(): void
     {
-        if (!empty($this->buffer)) {
-            if (false === $this->initialized) {
-                $this->initialize();
-            }
-
-            // send items, retry once with a fresh sequence token
-            try {
-                $this->send($this->buffer);
-            } catch (\Aws\CloudWatchLogs\Exception\CloudWatchLogsException $e) {
-                $this->refreshSequenceToken();
-                $this->send($this->buffer);
-            }
-
-            // clear buffer
-            $this->buffer = [];
-
-            // clear data amount
-            $this->currentDataAmount = 0;
+        if (empty($this->buffer)) {
+            return;
         }
+        if (false === $this->initialized) {
+            $this->initializeStream();
+        }
+
+        // send items, retry once with a fresh sequence token
+        try {
+            $this->send($this->buffer);
+        } catch (\Aws\CloudWatchLogs\Exception\CloudWatchLogsException $e) {
+            $this->refreshSequenceToken();
+            $this->send($this->buffer);
+        }
+
+        // clear buffer
+        $this->buffer = [];
+
+        // clear data amount
+        $this->currentDataAmount = 0;
     }
 
     private function checkThrottle(): void
@@ -297,55 +274,17 @@ class CloudWatch extends AbstractProcessingHandler
         $this->sequenceToken = $response->get('nextSequenceToken');
     }
 
-    private function initializeGroup(): void
+    private function initializeStream(): void
     {
-        // fetch existing groups
-        $existingGroups =
-            $this
-                ->client
-                ->describeLogGroups(['logGroupNamePrefix' => $this->group])
-                ->get('logGroups');
+        $this->client
+            ->createLogStream(
+                [
+                    'logGroupName' => $this->group,
+                    'logStreamName' => $this->stream
+                ]
+            );
 
-        // extract existing groups names
-        $existingGroupsNames = array_map(
-            function ($group) {
-                return $group['logGroupName'];
-            },
-            $existingGroups
-        );
-
-        // create group and set retention policy if not created yet
-        if (!in_array($this->group, $existingGroupsNames, true)) {
-            $createLogGroupArguments = ['logGroupName' => $this->group];
-
-            if (!empty($this->tags)) {
-                $createLogGroupArguments['tags'] = $this->tags;
-            }
-
-            $this
-                ->client
-                ->createLogGroup($createLogGroupArguments);
-
-            if ($this->retention !== null) {
-                $this
-                    ->client
-                    ->putRetentionPolicy(
-                        [
-                            'logGroupName' => $this->group,
-                            'retentionInDays' => $this->retention,
-                        ]
-                    );
-            }
-        }
-    }
-
-    private function initialize(): void
-    {
-        if ($this->createGroup) {
-            $this->initializeGroup();
-        }
-
-        $this->refreshSequenceToken();
+        $this->initialized = true;
     }
 
     private function refreshSequenceToken(): void
@@ -362,32 +301,13 @@ class CloudWatch extends AbstractProcessingHandler
                 )->get('logStreams');
 
         // extract existing streams names
-        $existingStreamsNames = array_map(
-            function ($stream) {
-
-                // set sequence token
-                if ($stream['logStreamName'] === $this->stream && isset($stream['uploadSequenceToken'])) {
-                    $this->sequenceToken = $stream['uploadSequenceToken'];
-                }
-
-                return $stream['logStreamName'];
-            },
-            $existingStreams
-        );
-
-        // create stream if not created
-        if (!in_array($this->stream, $existingStreamsNames, true)) {
-            $this
-                ->client
-                ->createLogStream(
-                    [
-                        'logGroupName' => $this->group,
-                        'logStreamName' => $this->stream
-                    ]
-                );
+        foreach ($existingStreams as $stream) {
+            // set sequence token
+            if ($stream['logStreamName'] === $this->stream && isset($stream['uploadSequenceToken'])) {
+                $this->sequenceToken = $stream['uploadSequenceToken'];
+                break;
+            }
         }
-
-        $this->initialized = true;
     }
 
     /**
