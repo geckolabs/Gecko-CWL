@@ -33,14 +33,14 @@ class CloudWatch extends AbstractProcessingHandler
     private $group;
 
     /**
+     * @var callable
+     */
+    private $streamProvider;
+
+    /**
      * @var string
      */
     private $stream;
-
-    /**
-     * @var bool
-     */
-    private $initialized = false;
 
     /**
      * @var string
@@ -103,7 +103,7 @@ class CloudWatch extends AbstractProcessingHandler
     public function __construct(
         CloudWatchLogsClient $client,
         $group,
-        $stream,
+        callable $streamProvider,
         $batchSize = 10000,
         $level = Logger::DEBUG,
         $bubble = true
@@ -114,8 +114,12 @@ class CloudWatch extends AbstractProcessingHandler
 
         $this->client = $client;
         $this->group = $group;
-        $this->stream = $stream;
         $this->batchSize = $batchSize;
+        
+        $this->streamProvider = $streamProvider;
+        $streamDetails = call_user_func($this->streamProvider);
+        $this->stream = $streamDetails[0];
+        $this->sequenceToken = $streamDetails[1];
 
         parent::__construct($level, $bubble);
 
@@ -157,7 +161,7 @@ class CloudWatch extends AbstractProcessingHandler
         if (empty($this->buffer)) {
             return;
         }
-        if (false === $this->initialized) {
+        if (null === $this->sequenceToken) {
             $this->initializeStream();
         }
 
@@ -272,6 +276,7 @@ class CloudWatch extends AbstractProcessingHandler
         $response = $this->client->putLogEvents($data);
 
         $this->sequenceToken = $response->get('nextSequenceToken');
+        call_user_func_array($this->streamProvider, [$this->sequenceToken, $this->stream]);
     }
 
     private function initializeStream(): void
@@ -283,8 +288,6 @@ class CloudWatch extends AbstractProcessingHandler
                     'logStreamName' => $this->stream
                 ]
             );
-
-        $this->initialized = true;
     }
 
     private function refreshSequenceToken(): void

@@ -72,7 +72,7 @@ class CloudWatchTest extends TestCase
             ])
             ->willReturn($logStreamResult);
 
-        $handler = new CloudWatch($this->clientMock, $this->groupName, $this->streamName, 10000, Logger::DEBUG, true);
+        $handler = new CloudWatch($this->clientMock, $this->groupName, $this->getSteamProvider(), 10000, Logger::DEBUG, true);
 
         $reflection = new \ReflectionClass($handler);
         $reflectionMethod = $reflection->getMethod('initializeStream');
@@ -102,7 +102,7 @@ class CloudWatchTest extends TestCase
     public function testLimitExceeded()
     {
         $this->expectException(\InvalidArgumentException::class);
-        (new CloudWatch($this->clientMock, 'a', 'b', 10001));
+        (new CloudWatch($this->clientMock, 'a', $this->getSteamProvider(), 10001));
     }
 
     public function testSendsOnClose()
@@ -201,7 +201,7 @@ class CloudWatchTest extends TestCase
 
     private function getCUT($batchSize = 1000)
     {
-        return new CloudWatch($this->clientMock, $this->groupName, $this->streamName, $batchSize);
+        return new CloudWatch($this->clientMock, $this->groupName, $this->getSteamProvider(), $batchSize);
     }
 
     /**
@@ -235,5 +235,21 @@ class CloudWatchTest extends TestCase
             $this->getRecord(Logger::WARNING, 'warning'),
             $this->getRecord(Logger::ERROR, 'error'),
         ];
+    }
+
+    private function getSteamProvider($existing = false)
+    {
+        return function($sequenceToken = null, $streamName = null) use ($existing) {
+            if ($sequenceToken !== null) {
+                // No need to try saving them
+                return;
+            }
+
+            if ($existing) {
+                return [$this->streamName, 'randomsequencetoken'];
+            } else {
+                return [$this->streamName, null];
+            }
+        };
     }
 }
