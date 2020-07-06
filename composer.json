@@ -1,5 +1,5 @@
 {
-    "name": "geckolabs/cwh",
+    "name": "geckolabs/gecko-cwl",
     "homepage": "https://github.com/geckolabs/Gecko-CWL",
     "type": "library",
     "description": "AWS CloudWatch Handler for Monolog library",
