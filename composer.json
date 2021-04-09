@@ -21,12 +21,11 @@
         "source": "https://github.com/geckolabs/Gecko-CWL"
     },
     "require": {
-        "php": "^7.2 || ^8.0",
+        "php": "^8.0",
         "monolog/monolog": "^2.0",
         "aws/aws-sdk-php": "^3.18"
     },
     "require-dev": {
-        "maxbanton/dd": "^2.0",
         "phpunit/phpunit": "^8.5",
         "squizlabs/php_codesniffer": "^3.5",
         "php-coveralls/php-coveralls": "^2.2"
